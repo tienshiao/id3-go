@@ -8,7 +8,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
-	"github.com/mikkyang/id3-go/encodedbytes"
+	"github.com/jcs/id3-go/encodedbytes"
 )
 
 const (

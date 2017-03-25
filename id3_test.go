@@ -50,7 +50,7 @@ func TestOpen(t *testing.T) {
 	actual := resultFrame.Description()
 
 	if expected != actual {
-		t.Errorf("Expected %q, got %q", expected, actual)
+		t.Errorf("Expected %x, got %x", expected, actual)
 	}
 
 	actual = resultFrame.Text()
