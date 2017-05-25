@@ -13,7 +13,8 @@ import (
 )
 
 const (
-	testFile = "test.mp3"
+	testFile        = "test.mp3"
+	chapterTestFile = "chaptest.mp3"
 )
 
 func TestOpen(t *testing.T) {
@@ -226,4 +227,75 @@ func TestUTF16CommPanic(t *testing.T) {
 		}
 		file.Close()
 	}
+}
+
+func TestTOC(t *testing.T) {
+	file, err := Open(chapterTestFile)
+	if err != nil {
+		t.Errorf("unable to open chapter file")
+	}
+
+	_toc := file.Frame("CTOC")
+	if _toc == nil {
+		t.Errorf("failed finding CTOC")
+	}
+
+	toc := _toc.(*v2.TOCFrame)
+
+	if toc.Element != "toc" {
+		t.Errorf("toc element %q", toc.Element)
+	}
+
+	if !toc.TopLevel {
+		t.Errorf("not top level")
+	}
+
+	if !toc.Ordered {
+		t.Errorf("not ordered")
+	}
+
+	if toc.ChildElements[0] != "chp0" {
+		t.Errorf("got %q", toc.ChildElements[0])
+	}
+
+	if toc.ChildElements[len(toc.ChildElements)-1] != "chp8" {
+		t.Errorf("got %q", toc.ChildElements[len(toc.ChildElements)-1])
+	}
+
+	file.Close()
+}
+
+func TestChapters(t *testing.T) {
+	file, err := Open(chapterTestFile)
+	if err != nil {
+		t.Errorf("unable to open chapter file")
+	}
+
+	_chaps := file.Frames("CHAP")
+	if _chaps == nil {
+		t.Errorf("failed finding CHAP")
+	}
+
+	var chaps [](*v2.ChapterFrame)
+	for _, c := range _chaps {
+		cc := c.(*v2.ChapterFrame)
+		chaps = append(chaps, cc)
+	}
+
+	if chaps[0].Title() != "Intro" {
+		t.Errorf("got %q", chaps[0].Title)
+	}
+	if chaps[8].Title() != "Get a free account!" {
+		t.Errorf("got %q", chaps[8].Title)
+	}
+
+	if !chaps[0].UseTime {
+		t.Errorf("should be using time")
+	}
+
+	if chaps[0].EndTime != 15000 {
+		t.Errorf("end time is %q", chaps[0].EndTime)
+	}
+
+	file.Close()
 }

@@ -4,6 +4,8 @@
 package v2
 
 import (
+	"bytes"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"github.com/mikkyang/id3-go/encodedbytes"
@@ -383,11 +385,11 @@ func (f DescTextFrame) Bytes() []byte {
 		return bytes
 	}
 
-	if err = wr.WriteString(f.description, f.encoding); err != nil {
+	if err = wr.WriteNullTermString(f.description, f.encoding); err != nil {
 		return bytes
 	}
 
-	if err = wr.WriteString(f.text, f.encoding); err != nil {
+	if err = wr.WriteNullTermString(f.text, f.encoding); err != nil {
 		return bytes
 	}
 
@@ -582,4 +584,318 @@ func (f ImageFrame) Bytes() []byte {
 	}
 
 	return bytes
+}
+
+// ChapterFrame represents chapter frames
+type ChapterFrame struct {
+	FrameHead
+	Element    string
+	StartTime  uint32
+	EndTime    uint32
+	StartByte  uint32
+	EndByte    uint32
+	UseTime    bool
+	titleFrame Framer
+	linkFrame  Framer
+}
+
+func NewChapterFrame(ft FrameType, element string, startTime uint32, endTime uint32, startByte uint32, endByte uint32, useTime bool, title string, link string, linkTitle string) *ChapterFrame {
+	var titleFrame Framer
+	var linkFrame Framer
+
+	if title != "" {
+		ft := V23FrameTypeMap["TIT2"]
+		titleFrame = NewTextFrame(ft, title)
+	}
+
+	if link != "" {
+		ft := V23FrameTypeMap["WXXX"]
+		linkFrame = NewDescTextFrame(ft, linkTitle, link)
+	}
+
+	head := FrameHead{
+		FrameType: ft,
+	}
+
+	cf := &ChapterFrame{head, element, startTime, endTime, startByte, endByte, useTime, titleFrame, linkFrame}
+	cf.size = uint32(len(cf.Bytes()))
+
+	return cf
+}
+
+func ParseChapterFrame(head FrameHead, data []byte) Framer {
+	var err error
+	var d []byte
+	var empty uint32
+	f := new(ChapterFrame)
+	f.FrameHead = head
+	rd := encodedbytes.NewReader(data)
+
+	// http://id3.org/id3v2-chapters-1.0
+
+	empty = binary.BigEndian.Uint32([]byte{0xff, 0xff, 0xff, 0xff})
+
+	if f.Element, err = rd.ReadNullTermString(encodedbytes.NativeEncoding); err != nil {
+		return nil
+	}
+
+	if d, err = rd.ReadNumBytes(encodedbytes.BytesPerInt); err != nil {
+		return nil
+	}
+	f.StartTime = binary.BigEndian.Uint32(d)
+
+	if d, err = rd.ReadNumBytes(encodedbytes.BytesPerInt); err != nil {
+		return nil
+	}
+	f.EndTime = binary.BigEndian.Uint32(d)
+
+	if d, err = rd.ReadNumBytes(encodedbytes.BytesPerInt); err != nil {
+		return nil
+	}
+	f.StartByte = binary.BigEndian.Uint32(d)
+
+	if d, err = rd.ReadNumBytes(encodedbytes.BytesPerInt); err != nil {
+		return nil
+	}
+	f.EndByte = binary.BigEndian.Uint32(d)
+
+	if f.StartTime == empty && f.EndTime == empty {
+		f.StartTime = 0
+		f.EndTime = 0
+		f.UseTime = false
+	} else if f.StartByte == empty && f.EndByte == empty {
+		f.StartByte = 0
+		f.EndByte = 0
+		f.UseTime = true
+	} else {
+		return nil
+	}
+
+	f.size = uint32(len(f.Element) + 1 + (4 * 4))
+
+	if d, err = rd.ReadRest(); err != nil {
+		return nil
+	}
+
+	// individual TIT2 labels will be subframes which are just normal frames
+	// but contained within the CHAP frame's size
+	if d != nil {
+		var frame Framer
+		dsize := len(d)
+		pos := 0
+		for pos < dsize {
+			reader := bytes.NewReader(d[pos:])
+			if frame = ParseV23Frame(reader); frame == nil {
+				break
+			}
+
+			switch frame.Id() {
+			case "TIT1", "TIT2", "TIT3":
+				f.titleFrame = frame
+			case "WXXX":
+				f.linkFrame = frame
+			}
+
+			fsize := int(frame.Size()) + FrameHeaderSize
+			pos += fsize
+			f.size += uint32(fsize)
+		}
+	}
+
+	return f
+}
+
+func (f ChapterFrame) String() string {
+	if f.UseTime {
+		return fmt.Sprintf("chapter: %d ms to %d ms: %v", f.StartTime, f.EndTime, f.Title())
+	} else {
+		return fmt.Sprintf("chapter: byte %d to %d: %v", f.StartByte, f.EndByte, f.Title())
+	}
+}
+
+func (f ChapterFrame) Link() string {
+	if f.linkFrame != nil {
+		return f.linkFrame.(*DescTextFrame).Text()
+	}
+	return ""
+}
+
+func (f ChapterFrame) Title() string {
+	if f.titleFrame != nil {
+		return f.titleFrame.(*TextFrame).String()
+	}
+	return ""
+}
+
+func (f *ChapterFrame) Bytes() []byte {
+	f.size = uint32(8 + len(f.Element))
+
+	var titleBytes []byte
+	if f.titleFrame != nil {
+		titleBytes = V23Bytes(f.titleFrame)
+		f.size += uint32(len(titleBytes)) + FrameHeaderSize
+	}
+
+	var linkBytes []byte
+	if f.linkFrame != nil {
+		linkBytes = V23Bytes(f.linkFrame)
+		f.size += uint32(len(linkBytes)) + FrameHeaderSize
+	}
+
+	bs := make([]byte, f.size)
+	wr := encodedbytes.NewWriter(bs)
+
+	if err := wr.WriteNullTermString(f.Element, encodedbytes.NativeEncoding); err != nil {
+		return bs
+	}
+
+	b4 := make([]byte, 4)
+	if f.UseTime {
+		binary.BigEndian.PutUint32(b4, f.StartTime)
+		if _, err := wr.Write(b4); err != nil {
+			return bs
+		}
+
+		binary.BigEndian.PutUint32(b4, f.EndTime)
+		if _, err := wr.Write(b4); err != nil {
+			return bs
+		}
+
+		if _, err := wr.Write(bytes.Repeat([]byte{0xff}, 8)); err != nil {
+			return bs
+		}
+	} else {
+		if _, err := wr.Write(bytes.Repeat([]byte{0xff}, 8)); err != nil {
+			return bs
+		}
+
+		binary.BigEndian.PutUint32(b4, f.StartByte)
+		if _, err := wr.Write(b4); err != nil {
+			return bs
+		}
+
+		binary.BigEndian.PutUint32(b4, f.EndByte)
+		if _, err := wr.Write(b4); err != nil {
+			return bs
+		}
+	}
+
+	if f.titleFrame != nil {
+		wr.Write(titleBytes)
+	}
+	if f.linkFrame != nil {
+		wr.Write(linkBytes)
+	}
+
+	return bs
+}
+
+// TOCFrame represents Table of Contents frames
+type TOCFrame struct {
+	FrameHead
+	Element       string
+	TopLevel      bool
+	Ordered       bool
+	ChildElements []string
+}
+
+func NewTOCFrame(ft FrameType, element string, topLevel bool, ordered bool, childElements []string) *TOCFrame {
+	head := FrameHead{
+		FrameType: ft,
+	}
+
+	tf := &TOCFrame{head, element, topLevel, ordered, childElements}
+	tf.size = uint32(len(tf.Bytes()))
+
+	return tf
+}
+
+func ParseTOCFrame(head FrameHead, data []byte) Framer {
+	var err error
+	f := new(TOCFrame)
+	f.FrameHead = head
+	rd := encodedbytes.NewReader(data)
+
+	if f.Element, err = rd.ReadNullTermString(encodedbytes.NativeEncoding); err != nil {
+		return nil
+	}
+
+	f.size = uint32(len(f.Element) + 1)
+
+	b, err := rd.ReadByte()
+	if err != nil {
+		return nil
+	}
+	f.Ordered = (b&(1<<0) != 0)
+	f.TopLevel = (b&(1<<1) != 0)
+
+	b, err = rd.ReadByte()
+	if err != nil {
+		return nil
+	}
+
+	f.size += 2
+
+	for i := 0; i < int(b); i++ {
+		s, err := rd.ReadNullTermString(encodedbytes.NativeEncoding)
+		if err != nil {
+			return nil
+		}
+
+		f.size += uint32(len(s) + 1)
+		f.ChildElements = append(f.ChildElements, s)
+	}
+
+	return f
+}
+
+func (f *TOCFrame) SetChildElements(elements []string) {
+	f.ChildElements = elements
+	old := int(f.size)
+	now := len(f.Bytes())
+	f.changeSize(now - old)
+}
+
+func (f TOCFrame) String() string {
+	return fmt.Sprintf("<TOC %v>", f.ChildElements)
+}
+
+func (f *TOCFrame) Bytes() []byte {
+	var err error
+
+	size := uint32(len(f.Element) + 1 + 2 + 1)
+	for _, e := range f.ChildElements {
+		size += uint32(len(e) + 1)
+	}
+
+	bs := make([]byte, size)
+	wr := encodedbytes.NewWriter(bs)
+
+	if err := wr.WriteNullTermString(f.Element, encodedbytes.NativeEncoding); err != nil {
+		return bs
+	}
+
+	flags := 0
+	if f.Ordered {
+		flags |= (1 << 0)
+	}
+	if f.TopLevel {
+		flags |= (1 << 1)
+	}
+
+	if err = wr.WriteByte(byte(flags)); err != nil {
+		return bs
+	}
+
+	if err = wr.WriteByte(byte(len(f.ChildElements))); err != nil {
+		return bs
+	}
+
+	for _, e := range f.ChildElements {
+		if err := wr.WriteNullTermString(e, encodedbytes.NativeEncoding); err != nil {
+			return bs
+		}
+	}
+
+	return bs
 }
