@@ -116,7 +116,7 @@ var (
 		"WORS": FrameType{id: "WORS", description: "Official internet radio station homepage", constructor: ParseDataFrame},
 		"WPAY": FrameType{id: "WPAY", description: "Payment", constructor: ParseDataFrame},
 		"WPUB": FrameType{id: "WPUB", description: "Publishers official webpage", constructor: ParseDataFrame},
-		"WXXX": FrameType{id: "WXXX", description: "User defined URL link frame", constructor: ParseDataFrame},
+		"WXXX": FrameType{id: "WXXX", description: "User defined URL link frame", constructor: ParseDescTextFrame},
 	}
 )
 
