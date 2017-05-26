@@ -189,6 +189,30 @@ func (t *Tag) DeleteFrames(id string) []Framer {
 	return frames
 }
 
+// Delete the specified frame
+func (t *Tag) DeleteFrame(delFrame Framer) []Framer {
+	frames := t.AllFrames()
+	if frames == nil {
+		return nil
+	}
+
+	diff := 0
+	i := 0
+	for i < len(t.frames) {
+		frame := t.frames[i]
+		if frame == delFrame {
+			frame.setOwner(nil)
+			diff += t.frameHeaderSize + int(frame.Size())
+			t.frames = append(t.frames[:i], t.frames[i+1:]...)
+		} else {
+			i++
+		}
+	}
+	t.changeSize(-diff)
+
+	return frames
+}
+
 // Add frames
 func (t *Tag) AddFrames(frames ...Framer) {
 	for _, frame := range frames {

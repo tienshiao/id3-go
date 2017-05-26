@@ -140,9 +140,10 @@ func (t Tag) Version() string {
 }
 
 // Dummy methods to satisfy Tagger interface
-func (t Tag) Padding() uint                      { return 0 }
-func (t Tag) AllFrames() []v2.Framer             { return []v2.Framer{} }
-func (t Tag) Frame(id string) v2.Framer          { return nil }
-func (t Tag) Frames(id string) []v2.Framer       { return []v2.Framer{} }
-func (t Tag) DeleteFrames(id string) []v2.Framer { return []v2.Framer{} }
-func (t Tag) AddFrames(f ...v2.Framer)           {}
+func (t Tag) Padding() uint                       { return 0 }
+func (t Tag) AllFrames() []v2.Framer              { return []v2.Framer{} }
+func (t Tag) Frame(id string) v2.Framer           { return nil }
+func (t Tag) Frames(id string) []v2.Framer        { return []v2.Framer{} }
+func (t Tag) DeleteFrames(id string) []v2.Framer  { return []v2.Framer{} }
+func (t Tag) DeleteFrame(f v2.Framer) []v2.Framer { return []v2.Framer{} }
+func (t Tag) AddFrames(f ...v2.Framer)            {}

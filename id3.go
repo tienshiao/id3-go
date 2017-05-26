@@ -30,6 +30,7 @@ type Tagger interface {
 	AllFrames() []v2.Framer
 	Frames(string) []v2.Framer
 	Frame(string) v2.Framer
+	DeleteFrame(v2.Framer) []v2.Framer
 	DeleteFrames(string) []v2.Framer
 	AddFrames(...v2.Framer)
 	Bytes() []byte
