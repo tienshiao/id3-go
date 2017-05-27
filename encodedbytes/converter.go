@@ -21,7 +21,9 @@ func resolveEncoding(b []byte, name string) encoding.Encoding {
 	case "UTF-8":
 		return nil
 	case "UTF-16":
-		if b == nil || len(b) < 2 {
+		if b == nil {
+			return unicode.UTF16(unicode.LittleEndian, unicode.ExpectBOM)
+		} else if len(b) < 2 {
 			return unicode.UTF16(unicode.BigEndian, unicode.IgnoreBOM)
 		} else if b[0] == 0xFE && b[1] == 0xFF {
 			return unicode.UTF16(unicode.BigEndian, unicode.ExpectBOM)
