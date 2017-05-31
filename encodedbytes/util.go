@@ -149,3 +149,26 @@ func EncodedDiff(newEncoding byte, newString string, oldEncoding byte, oldString
 
 	return len(newEncodedString) - len(oldEncodedString), nil
 }
+
+func EncodedStringBytes(s string, encoding byte) ([]byte, error) {
+	encodedString, err := Encoders[encoding].ConvertString(s)
+	if err != nil {
+		return nil, err
+	}
+
+	return []byte(encodedString), nil
+}
+
+func EncodedNullTermStringBytes(s string, encoding byte) ([]byte, error) {
+	encodedBytes, err := EncodedStringBytes(s, encoding)
+	if err != nil {
+		return nil, err
+	}
+
+	nullLength := EncodingNullLengthForIndex(encoding)
+	for x := 0; x < nullLength; x++ {
+		encodedBytes = append(encodedBytes, byte(0x0))
+	}
+
+	return encodedBytes, nil
+}

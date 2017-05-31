@@ -320,14 +320,25 @@ func ParseDescTextFrame(head FrameHead, data []byte) Framer {
 	if f.encoding, err = rd.ReadByte(); err != nil {
 		return nil
 	}
+	f.size = uint32(1)
 
 	if f.description, err = rd.ReadNullTermString(f.encoding); err != nil {
 		return nil
 	}
+	l, err := encodedbytes.EncodedNullTermStringBytes(f.description, f.encoding)
+	if err != nil {
+		return nil
+	}
+	f.size += uint32(len(l))
 
 	if f.text, err = rd.ReadRestString(f.encoding); err != nil {
 		return nil
 	}
+	l, err = encodedbytes.EncodedStringBytes(f.text, f.encoding)
+	if err != nil {
+		return nil
+	}
+	f.size += uint32(len(l))
 
 	return f
 }
@@ -421,18 +432,30 @@ func ParseUnsynchTextFrame(head FrameHead, data []byte) Framer {
 	if f.encoding, err = rd.ReadByte(); err != nil {
 		return nil
 	}
+	f.size = uint32(1)
 
 	if f.language, err = rd.ReadNumBytesString(3); err != nil {
 		return nil
 	}
+	f.size += uint32(3)
 
 	if f.description, err = rd.ReadNullTermString(f.encoding); err != nil {
 		return nil
 	}
+	l, err := encodedbytes.EncodedNullTermStringBytes(f.description, f.encoding)
+	if err != nil {
+		return nil
+	}
+	f.size += uint32(len(l))
 
 	if f.text, err = rd.ReadRestString(f.encoding); err != nil {
 		return nil
 	}
+	l, err = encodedbytes.EncodedStringBytes(f.text, f.encoding)
+	if err != nil {
+		return nil
+	}
+	f.size += uint32(len(l))
 
 	return f
 }
@@ -497,22 +520,35 @@ func ParseImageFrame(head FrameHead, data []byte) Framer {
 	if f.encoding, err = rd.ReadByte(); err != nil {
 		return nil
 	}
+	f.size = uint32(1)
 
 	if f.mimeType, err = rd.ReadNullTermString(encodedbytes.NativeEncoding); err != nil {
 		return nil
 	}
+	l, err := encodedbytes.EncodedNullTermStringBytes(f.mimeType, encodedbytes.NativeEncoding)
+	if err != nil {
+		return nil
+	}
+	f.size += uint32(len(l))
 
 	if f.pictureType, err = rd.ReadByte(); err != nil {
 		return nil
 	}
+	f.size += uint32(1)
 
 	if f.description, err = rd.ReadNullTermString(f.encoding); err != nil {
 		return nil
 	}
+	l, err = encodedbytes.EncodedNullTermStringBytes(f.description, f.encoding)
+	if err != nil {
+		return nil
+	}
+	f.size += uint32(len(l))
 
 	if f.data, err = rd.ReadRest(); err != nil {
 		return nil
 	}
+	f.size += uint32(len(f.data))
 
 	return f
 }
@@ -606,11 +642,13 @@ func NewChapterFrame(ft FrameType, element string, startTime uint32, endTime uin
 	if title != "" {
 		ft := V23FrameTypeMap["TIT2"]
 		titleFrame = NewTextFrame(ft, title)
+		titleFrame.(*TextFrame).SetEncoding("UTF-16")
 	}
 
 	if link != "" {
 		ft := V23FrameTypeMap["WXXX"]
 		linkFrame = NewDescTextFrame(ft, linkTitle, link)
+		linkFrame.(*DescTextFrame).SetEncoding("UTF-16")
 	}
 
 	head := FrameHead{
@@ -728,18 +766,18 @@ func (f ChapterFrame) Title() string {
 }
 
 func (f *ChapterFrame) Bytes() []byte {
-	f.size = uint32(8 + len(f.Element))
+	f.size = uint32(len(f.Element) + 1 + 4 + 4 + 4 + 4)
 
 	var titleBytes []byte
 	if f.titleFrame != nil {
 		titleBytes = V23Bytes(f.titleFrame)
-		f.size += uint32(len(titleBytes)) + FrameHeaderSize
+		f.size += uint32(len(titleBytes))
 	}
 
 	var linkBytes []byte
 	if f.linkFrame != nil {
 		linkBytes = V23Bytes(f.linkFrame)
-		f.size += uint32(len(linkBytes)) + FrameHeaderSize
+		f.size += uint32(len(linkBytes))
 	}
 
 	bs := make([]byte, f.size)
@@ -828,13 +866,13 @@ func ParseTOCFrame(head FrameHead, data []byte) Framer {
 	}
 	f.Ordered = (b&(1<<0) != 0)
 	f.TopLevel = (b&(1<<1) != 0)
+	f.size += 1
 
 	b, err = rd.ReadByte()
 	if err != nil {
 		return nil
 	}
-
-	f.size += 2
+	f.size += 1
 
 	for i := 0; i < int(b); i++ {
 		s, err := rd.ReadNullTermString(encodedbytes.NativeEncoding)
@@ -863,7 +901,7 @@ func (f TOCFrame) String() string {
 func (f *TOCFrame) Bytes() []byte {
 	var err error
 
-	size := uint32(len(f.Element) + 1 + 2 + 1)
+	size := uint32(len(f.Element) + 1 + 1 + 1)
 	for _, e := range f.ChildElements {
 		size += uint32(len(e) + 1)
 	}

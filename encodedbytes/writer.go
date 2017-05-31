@@ -36,12 +36,12 @@ func (w *Writer) WriteByte(b byte) (err error) {
 }
 
 func (w *Writer) WriteString(s string, encoding byte) (err error) {
-	encodedString, err := Encoders[encoding].ConvertString(s)
+	encodedBytes, err := EncodedStringBytes(s, encoding)
 	if err != nil {
 		return err
 	}
 
-	_, err = w.Write([]byte(encodedString))
+	_, err = w.Write(encodedBytes)
 	if err != nil {
 		return err
 	}
