@@ -633,6 +633,7 @@ type ChapterFrame struct {
 	UseTime    bool
 	titleFrame Framer
 	linkFrame  Framer
+	imageFrame Framer
 }
 
 func NewChapterFrame(ft FrameType, element string, startTime uint32, endTime uint32, startByte uint32, endByte uint32, useTime bool, title string, link string, linkTitle string) *ChapterFrame {
@@ -655,7 +656,7 @@ func NewChapterFrame(ft FrameType, element string, startTime uint32, endTime uin
 		FrameType: ft,
 	}
 
-	cf := &ChapterFrame{head, element, startTime, endTime, startByte, endByte, useTime, titleFrame, linkFrame}
+	cf := &ChapterFrame{head, element, startTime, endTime, startByte, endByte, useTime, titleFrame, linkFrame, nil}
 	cf.size = uint32(len(cf.Bytes()))
 
 	return cf
@@ -732,6 +733,8 @@ func ParseChapterFrame(head FrameHead, data []byte) Framer {
 				f.titleFrame = frame
 			case "WXXX":
 				f.linkFrame = frame
+			case "APIC":
+				f.imageFrame = frame
 			}
 
 			fsize := int(frame.Size()) + FrameHeaderSize
@@ -763,6 +766,13 @@ func (f ChapterFrame) Title() string {
 		return f.titleFrame.(*TextFrame).String()
 	}
 	return ""
+}
+
+func (f ChapterFrame) Image() *ImageFrame {
+	if f.imageFrame != nil {
+		return f.imageFrame.(*ImageFrame)
+	}
+	return nil
 }
 
 func (f *ChapterFrame) Bytes() []byte {
