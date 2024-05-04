@@ -5,7 +5,7 @@ package id3
 
 import (
 	"bytes"
-	v2 "github.com/jcs/id3-go/v2"
+	v2 "github.com/tienshiao/id3-go/v2"
 	"io"
 	"io/ioutil"
 	"os"
